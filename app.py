@@ -26,14 +26,22 @@ def base_score_from_agi(agi, pcpi):
     agi = min(agi, 1_000_000)  # cap AGI at $1M
     ratio = agi / pcpi
 
-    if ratio < 0.8:
-        return 400, "🔴 Financial Stress"
-    elif ratio < 1.0:
+    if ratio < 0.6:
+        return 350, "🔴 Critical Financial Stress"
+    elif ratio < 0.7:
+        return 400, "🔴 Severe Stress"
+    elif ratio < 0.8:
+        return 450, "🔴 Financial Stress"
+    elif ratio < 0.9:
         return 500, "🟠 At Risk"
-    elif ratio < 1.3:
+    elif ratio < 1.0:
+        return 550, "🟠 Near Average"
+    elif ratio < 1.2:
         return 600, "🟡 Stable"
-    elif ratio < 1.7:
-        return 700, "🟢 Good"
+    elif ratio < 1.5:
+        return 675, "🟢 Good"
+    elif ratio < 2.0:
+        return 750, "🟢 Very Good"
     elif ratio < 2.5:
         return 800, "🟢 Excellent"
     else:
