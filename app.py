@@ -21,26 +21,26 @@ def normalize(series):
 def inverse_normalize(series):
     return 100 * (series.max() - series) / (series.max() - series.min())
 
-# --- Base Score from AGI vs PCPI ---
+# --- AGI to PCPI ratio → Base Score Logic ---
 def base_score_from_agi(agi, pcpi):
-    agi = min(agi, 1_000_000)  # cap at $1M
+    agi = min(agi, 1_000_000)  # cap AGI at $1M
     ratio = agi / pcpi
 
     if ratio < 0.8:
         return 400, "🔴 Financial Stress"
     elif ratio < 1.0:
         return 500, "🟠 At Risk"
-    elif ratio < 1.2:
+    elif ratio < 1.3:
         return 600, "🟡 Stable"
-    elif ratio < 1.5:
+    elif ratio < 1.7:
         return 700, "🟢 Good"
-    elif ratio < 2.0:
+    elif ratio < 2.5:
         return 800, "🟢 Excellent"
     else:
-        return 850, "🟢 Top Performer"
+        return 850, "🟢 Top Performer (Cap)"
 
 # --- Streamlit UI ---
-st.title("📍 Muse Score Calculator (AGI-Driven)")
+st.title("📍 Muse Score Calculator (Refined AGI Mapping)")
 
 zip_code = st.text_input("Enter your ZIP code:", "")
 agi = st.number_input("Enter your Adjusted Gross Income (AGI)", min_value=1000, max_value=1_000_000, step=1000, value=50000)
