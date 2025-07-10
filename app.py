@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# Load Excel data
+# --- Load Excel Data ---
 @st.cache_data
 def load_data():
     df = pd.read_excel("zip_code_demographics3.xlsx", dtype={'zip': str}, engine='openpyxl')
@@ -14,27 +14,18 @@ def load_data():
 
 df = load_data()
 
-# Normalization function
+# --- Normalization Function ---
 def normalize(series):
     return 100 * (series - series.min()) / (series.max() - series.min())
 
-# AGI factor (new function)
-def agi_factor(user_agi, local_pcpi):
+# --- Additive AGI Adjustment Function ---
+def agi_additive_adjustment(user_agi, local_pcpi):
     ratio = user_agi / local_pcpi
-    if ratio >= 1.5:
-        return 100
-    elif ratio >= 1.2:
-        return 85
-    elif ratio >= 1.0:
-        return 70
-    elif ratio >= 0.8:
-        return 50
-    elif ratio >= 0.5:
-        return 30
-    else:
-        return 10
+    ratio = min(max(ratio, 0.5), 2.0)  # Clamp ratio between 0.5 and 2.0
+    adjustment = (ratio - 1) * 20  # -10 to +20
+    return adjustment
 
-# App UI
+# --- Streamlit UI ---
 st.title("📍 Muse Score Calculator")
 
 zip_code = st.text_input("Enter your ZIP code:", "")
@@ -44,7 +35,7 @@ if st.button("Calculate Muse Score"):
     if zip_code in df['zip'].values:
         user_row = df[df['zip'] == zip_code].iloc[0]
 
-        # Normalized Factors
+        # Normalize Factors
         CLF = normalize(df['COLI']).loc[user_row.name]
         TRF = normalize(df['TRF']).loc[user_row.name]
         TTIF = normalize(df['PCPI']).loc[user_row.name]
@@ -54,24 +45,26 @@ if st.button("Calculate Muse Score"):
         ISF = normalize(df['Savings']).loc[user_row.name]
         DDF = 50  # Placeholder
 
-        # New AGI Factor (dynamic)
-        AGIF = agi_factor(agi, user_row['PCPI'])
+        # AGI Adjustment (additive effect)
+        agi_adj = agi_additive_adjustment(agi, user_row['PCPI'])
 
-        # Adjusted Muse Score calculation including AGI factor
-        muse_score = (
-            0.15 * CLF +
-            0.15 * TRF +
+        # Base Muse Score (0–100 scale)
+        base_score = (
+            0.20 * CLF +
+            0.20 * TRF +
             0.15 * TTIF +
             0.15 * PTF +
-            0.10 * SITF +
-            0.10 * AGIF +  # AGI factor has 10% impact
+            0.15 * SITF +
             0.05 * DDF +
             0.05 * RSF +
             0.05 * ISF
         )
 
-        muse_score_scaled = 300 + (muse_score * 550 / 100)
+        # Final Muse Score scaled to 300–850 with AGI adjustment
+        muse_score_scaled = 300 + ((base_score + agi_adj) * 550 / 100)
+        muse_score_scaled = min(max(muse_score_scaled, 300), 850)
 
+        # Gauge Chart
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=muse_score_scaled,
@@ -82,7 +75,7 @@ if st.button("Calculate Muse Score"):
                     {'range': [300, 550], 'color': "red"},
                     {'range': [550, 700], 'color': "orange"},
                     {'range': [700, 800], 'color': "yellow"},
-                    {'range': [800, 850], 'color': "green"}
+                    {'range': [800, 850], 'color': "green"},
                 ],
                 'threshold': {
                     'line': {'color': "black", 'width': 4},
@@ -94,29 +87,30 @@ if st.button("Calculate Muse Score"):
 
         st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader(f"📋 Summary for ZIP: {zip_code} - {user_row.city}, {user_row.state_id}")
+        # Summary of Data
+        st.subheader(f"📋 Summary for ZIP: {zip_code} — {user_row.city}, {user_row.state_id}")
         st.markdown(f"""
+        - **Your AGI:** ${agi:,.0f}
+        - **Local Avg Income (PCPI):** ${user_row.PCPI:,.0f}
         - **Cost of Living Index (COLI):** {user_row.COLI}
         - **Tax Rate Factor (TRF):** {user_row.TRF}%
-        - **Local Avg. Personal Income (PCPI):** ${user_row.PCPI}
-        - **Your AGI:** ${agi}
         - **Property Tax Rate (PTR):** {user_row.PTR}%
         - **State Income Tax Rate (TR):** {user_row.TR}%
         - **Retirement Savings Factor (RSF):** {user_row.RSF}
-        - **Investment Savings:** ${user_row.Savings}
+        - **Investment Savings:** ${user_row.Savings:,.0f}
         - **Population:** {user_row.population}
         - **Population Density:** {user_row.density} people/km²
         """)
 
-        # Professional financial comment
+        # Interpretation Message
         if muse_score_scaled < 550:
-            comment = "🔴 Financial stress: Your AGI is significantly below your area's average. Consider budgeting and additional income strategies."
+            comment = "🔴 Your AGI is well below local average. Significant financial stress expected in this area."
         elif muse_score_scaled < 700:
-            comment = "🟠 At risk: Your AGI is slightly below the local average. Improving savings and optimizing expenses is recommended."
+            comment = "🟠 Your AGI is below average. Financial risk exists. Boost income or reduce expenses."
         elif muse_score_scaled < 800:
-            comment = "🟡 Good shape: Your AGI aligns with the local average. Maintain financial discipline and explore additional optimization."
+            comment = "🟡 Your AGI aligns with local averages. You're in a good position. Stay financially disciplined."
         else:
-            comment = "🟢 Excellent financial position: Your AGI exceeds the local average significantly. You're in a strong position for advanced financial planning."
+            comment = "🟢 Excellent! Your AGI is well above local norms. Strong financial resilience."
 
         st.info(comment)
 
