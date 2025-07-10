@@ -2,22 +2,21 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# Load data
+# Load Excel data
 @st.cache_data
 def load_data():
-    df = pd.read_csv("zip_code_demographics3.csv", dtype={'zip': str})
+    df = pd.read_excel("zip_code_demographics3.xlsx", dtype={'zip': str}, engine='openpyxl')
     return df
 
 df = load_data()
 
-# Muse Score Calculation (standardization function)
+# Muse Score Normalization Function
 def normalize(series):
     return 100 * (series - series.min()) / (series.max() - series.min())
 
-# Main App
+# App UI
 st.title("📍 Muse Score Calculator")
 
-# User input
 zip_code = st.text_input("Enter your ZIP code:", "")
 agi = st.number_input("Enter your Adjusted Gross Income (AGI):", min_value=1000, step=1000, value=50000)
 
@@ -33,7 +32,7 @@ if st.button("Calculate Muse Score"):
         SITF = normalize(df['TR']).loc[user_row.name]
         RSF = normalize(df['RSF']).loc[user_row.name]
         ISF = normalize(df['Savings']).loc[user_row.name]
-        DDF = 50  # placeholder as data is missing
+        DDF = 50  # Placeholder, replace with real data if available
 
         muse_score = (
             0.20 * CLF +
@@ -46,10 +45,8 @@ if st.button("Calculate Muse Score"):
             0.05 * ISF
         )
 
-        # Scale Muse Score to 300-850
         muse_score_scaled = 300 + (muse_score * 550 / 100)
 
-        # Gauge Chart for Muse Score
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=muse_score_scaled,
@@ -72,7 +69,6 @@ if st.button("Calculate Muse Score"):
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # Show summary
         st.subheader(f"📋 Summary for ZIP: {zip_code} - {user_row.city}, {user_row.state_id}")
         st.markdown(f"""
         - **Cost of Living Index (COLI):** {user_row.COLI}
@@ -85,18 +81,17 @@ if st.button("Calculate Muse Score"):
         - **Population:** {user_row.population}
         - **Population Density:** {user_row.density} people/km²
         """)
-        
-        # Professional financial comment
+
         if muse_score_scaled < 550:
-            comment = "🔴 Your financial situation indicates significant stress. Consider immediate cost management."
+            comment = "🔴 Financial stress: Review immediate budgeting and cost-cutting measures."
         elif muse_score_scaled < 700:
-            comment = "🟠 Your financial situation is somewhat at risk. You may benefit from better financial planning."
+            comment = "🟠 At risk: Consider optimizing taxes and boosting savings."
         elif muse_score_scaled < 800:
-            comment = "🟡 You're in good financial shape. Optimize further with tax planning."
+            comment = "🟡 Good shape: Continue monitoring and optimizing financial decisions."
         else:
-            comment = "🟢 Excellent financial health! Continue strategic investment and tax planning."
+            comment = "🟢 Excellent financial position: Maintain your current strategy and consider advanced investments."
 
         st.info(comment)
 
     else:
-        st.error("ZIP code not found. Please check your input.")
+        st.error("ZIP code not found. Please verify your input.")
