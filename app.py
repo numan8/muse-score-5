@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# Load Excel
+# --- Load Data ---
 @st.cache_data
 def load_data():
     df = pd.read_excel("zip_code_demographics3.xlsx", dtype={'zip': str}, engine='openpyxl')
@@ -14,58 +14,69 @@ def load_data():
 
 df = load_data()
 
-# Normalize function (0–100)
+# --- Normalization Utilities ---
 def normalize(series):
     return 100 * (series - series.min()) / (series.max() - series.min())
 
 def inverse_normalize(series):
     return 100 * (series.max() - series) / (series.max() - series.min())
 
-# AGI to Muse Score baseline
-def get_agi_base_score(agi, pcpi):
-    ratio = min(agi / pcpi, 2.0)  # cap ratio at 2.0
-    if ratio < 0.5:
-        return 350
-    elif ratio < 0.8:
-        return 500
-    elif ratio < 1.0:
-        return 650
-    elif ratio < 1.2:
-        return 725
-    elif ratio < 1.5:
-        return 775
-    else:
-        return 800
+# --- Base Score from AGI vs PCPI ---
+def base_score_from_agi(agi, pcpi):
+    agi = min(agi, 1_000_000)  # cap at $1M
+    ratio = agi / pcpi
 
-# Main App
+    if ratio < 0.8:
+        return 400, "🔴 Financial Stress"
+    elif ratio < 1.0:
+        return 500, "🟠 At Risk"
+    elif ratio < 1.2:
+        return 600, "🟡 Stable"
+    elif ratio < 1.5:
+        return 700, "🟢 Good"
+    elif ratio < 2.0:
+        return 800, "🟢 Excellent"
+    else:
+        return 850, "🟢 Top Performer"
+
+# --- Streamlit UI ---
 st.title("📍 Muse Score Calculator (AGI-Driven)")
 
 zip_code = st.text_input("Enter your ZIP code:", "")
-agi = st.number_input("Enter your Adjusted Gross Income (AGI):", min_value=1000, max_value=1_000_000, step=1000, value=50000)
+agi = st.number_input("Enter your Adjusted Gross Income (AGI)", min_value=1000, max_value=1_000_000, step=1000, value=50000)
 
 if st.button("Calculate Muse Score"):
     if zip_code in df['zip'].values:
-        user_row = df[df['zip'] == zip_code].iloc[0]
+        row = df[df['zip'] == zip_code].iloc[0]
 
-        # Baseline from AGI/PCPI ratio
-        base_score = get_agi_base_score(agi, user_row['PCPI'])
+        # Normalize factors
+        COLI = inverse_normalize(df['COLI']).loc[row.name]
+        TRF = inverse_normalize(df['TRF']).loc[row.name]
+        PTR = inverse_normalize(df['PTR']).loc[row.name]
+        SITF = inverse_normalize(df['TR']).loc[row.name]
+        RSF = normalize(df['RSF']).loc[row.name]
+        ISF = normalize(df['Savings']).loc[row.name]
 
-        # Adjustment factors (normalized properly)
-        CLF_adj = inverse_normalize(df['COLI']).loc[user_row.name] / 100 * 10
-        TRF_adj = inverse_normalize(df['TRF']).loc[user_row.name] / 100 * 10
-        PTR_adj = inverse_normalize(df['PTR']).loc[user_row.name] / 100 * 5
-        SITF_adj = inverse_normalize(df['TR']).loc[user_row.name] / 100 * 5
-        RSF_adj = normalize(df['RSF']).loc[user_row.name] / 100 * 10
-        ISF_adj = normalize(df['Savings']).loc[user_row.name] / 100 * 10
+        # AGI anchor score
+        base_score, status = base_score_from_agi(agi, row['PCPI'])
 
-        adjustment = CLF_adj + TRF_adj + PTR_adj + SITF_adj + RSF_adj + ISF_adj
-        muse_score = min(base_score + adjustment, 850)
+        # Fine-tuned adjustment (max ±50)
+        adjustment = (
+            15 * (COLI / 100) +
+            10 * (TRF / 100) +
+            10 * (PTR / 100) +
+            10 * (SITF / 100) +
+            5 * (RSF / 100) +
+            5 * (ISF / 100)
+        )
 
-        # Gauge
+        final_score = min(850, round(base_score + adjustment))
+
+        # --- Gauge Chart ---
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
-            value=muse_score,
-            title={'text': "Muse Score"},
+            value=final_score,
+            title={'text': f"Muse Score"},
             gauge={
                 'axis': {'range': [300, 850]},
                 'steps': [
@@ -77,34 +88,28 @@ if st.button("Calculate Muse Score"):
                 'threshold': {
                     'line': {'color': "black", 'width': 4},
                     'thickness': 0.75,
-                    'value': muse_score
+                    'value': final_score
                 }
             }
         ))
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # Summary
-        st.subheader(f"📋 Summary for ZIP: {zip_code} — {user_row.city}, {user_row.state_id}")
+        # --- Summary Info ---
+        st.subheader(f"📋 Summary for ZIP: {zip_code} — {row.city}, {row.state_id}")
         st.markdown(f"""
         - **Your AGI:** ${agi:,.0f}
-        - **Local Avg Income (PCPI):** ${user_row.PCPI:,.0f}
-        - **Cost of Living Index (COLI):** {user_row.COLI}
-        - **Tax Rate Factor (TRF):** {user_row.TRF}%
-        - **Property Tax Rate (PTR):** {user_row.PTR}%
-        - **State Income Tax Rate (TR):** {user_row.TR}%
-        - **Retirement Savings Factor (RSF):** {user_row.RSF}
-        - **Investment Savings:** ${user_row.Savings:,.0f}
+        - **Local Avg Income (PCPI):** ${row.PCPI:,.0f}
+        - **AGI Status:** {status}
+        - **Cost of Living Index (COLI):** {row.COLI}
+        - **Tax Rate Factor (TRF):** {row.TRF}%
+        - **Property Tax Rate (PTR):** {row.PTR}%
+        - **State Income Tax Rate (TR):** {row.TR}%
+        - **Retirement Savings Factor (RSF):** {row.RSF}
+        - **Investment Savings:** ${row.Savings:,.0f}
+        - **Population:** {row.population}
+        - **Population Density:** {row.density} people/km²
         """)
 
-        # Interpretation
-        ratio = agi / user_row['PCPI']
-        if ratio < 0.8:
-            st.warning("🟠 Your income is below the local average. Consider areas with lower living costs.")
-        elif ratio < 1.2:
-            st.info("🟡 You're well-aligned with the local economy.")
-        else:
-            st.success("🟢 You're earning well above the local average. Strong financial resilience expected.")
-
     else:
-        st.error("ZIP code not found. Please check your input.")
+        st.error("ZIP code not found. Please verify your input.")
