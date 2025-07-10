@@ -95,20 +95,16 @@ if st.button("Calculate Muse Score"):
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # --- Summary Info ---
-        st.subheader(f"📋 Summary for ZIP: {zip_code} — {row.city}, {row.state_id}")
+                # --- Customized Summary ---
+        st.subheader("📋 Summary")
         st.markdown(f"""
-        - **Your AGI:** ${agi:,.0f}
-        - **Local Avg Income (PCPI):** ${row.PCPI:,.0f}
-        - **AGI Status:** {status}
-        - **Cost of Living Index (COLI):** {row.COLI}
-        - **Tax Rate Factor (TRF):** {row.TRF}%
-        - **Property Tax Rate (PTR):** {row.PTR}%
-        - **State Income Tax Rate (TR):** {row.TR}%
-        - **Retirement Savings Factor (RSF):** {row.RSF}
-        - **Investment Savings:** ${row.Savings:,.0f}
-        - **Population:** {row.population}
-        - **Population Density:** {row.density} people/km²
+        **ZIP Code:** {zip_code}  
+        **City:** {row.city}  
+        **State:** {row.state_id}  
+        **Your AGI:** ${agi:,.0f}  
+        **AGI Status:** {status}  
+        **Local Avg Income (PCPI):** ${row.PCPI:,.0f}  
+        **Cost of Living Index (COLI):** {row.COLI}  
         """)
 
     else:
