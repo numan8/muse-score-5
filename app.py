@@ -14,15 +14,17 @@ def load_data():
 
 df = load_data()
 
-# --- Normalization Function ---
+# --- Normalization Functions ---
 def normalize(series):
     return 100 * (series - series.min()) / (series.max() - series.min())
 
-# --- Normalize AGI based on ratio to local PCPI ---
+def inverse_normalize(series):
+    return 100 * (series.max() - series) / (series.max() - series.min())
+
 def normalize_agi_ratio(user_agi, local_pcpi):
     ratio = user_agi / local_pcpi
     ratio = min(max(ratio, 0.5), 2.0)  # clamp between 0.5 and 2.0
-    return (ratio - 0.5) / 1.5 * 100   # normalized to 0–100
+    return (ratio - 0.5) / 1.5 * 100   # normalize to 0–100 scale
 
 # --- Streamlit UI ---
 st.title("📍 Muse Score Calculator")
@@ -35,26 +37,23 @@ if st.button("Calculate Muse Score"):
         user_row = df[df['zip'] == zip_code].iloc[0]
 
         # Normalize all factors
-        CLF = normalize(df['COLI']).loc[user_row.name]
-        TRF = normalize(df['TRF']).loc[user_row.name]
-        TTIF = normalize(df['PCPI']).loc[user_row.name]
-        PTF = normalize(df['PTR']).loc[user_row.name]
-        SITF = normalize(df['TR']).loc[user_row.name]
+        CLF = inverse_normalize(df['COLI']).loc[user_row.name]
+        TRF = inverse_normalize(df['TRF']).loc[user_row.name]
+        PTR = inverse_normalize(df['PTR']).loc[user_row.name]
+        SITF = inverse_normalize(df['TR']).loc[user_row.name]
         RSF = normalize(df['RSF']).loc[user_row.name]
         ISF = normalize(df['Savings']).loc[user_row.name]
-        DDF = 50  # Placeholder if not available
         AGI_norm = normalize_agi_ratio(agi, user_row['PCPI'])
 
-        # Muse Score formula with AGI as 20%
+        # Weighted Muse Score
         muse_score_raw = (
-            0.20 * CLF +
-            0.20 * TRF +
-            0.15 * TTIF +
-            0.15 * PTF +
+            0.15 * CLF +
+            0.15 * TRF +
+            0.10 * PTR +
             0.10 * SITF +
-            0.10 * AGI_norm +
-            0.05 * RSF +
-            0.05 * ISF
+            0.30 * AGI_norm +
+            0.10 * RSF +
+            0.10 * ISF
         )
 
         # Scale to 300–850
@@ -99,16 +98,16 @@ if st.button("Calculate Muse Score"):
         - **Population Density:** {user_row.density} people/km²
         """)
 
-        # --- AGI vs PCPI Comment ---
+        # --- AGI vs PCPI Commentary ---
         agi_ratio = agi / user_row['PCPI']
         if agi_ratio < 0.8:
-            comment = "🔴 Your AGI is significantly below the local average. You may experience financial stress in this area."
+            comment = "🔴 Your AGI is significantly below the local average. Financial stress is likely in this area."
         elif agi_ratio < 1.0:
-            comment = "🟠 Your AGI is slightly below the local average. Risk of financial constraints exists."
+            comment = "🟠 Your AGI is slightly below the local average. You may need to manage expenses carefully."
         elif agi_ratio < 1.2:
-            comment = "🟡 Your AGI aligns closely with the local average. You're in a stable financial position."
+            comment = "🟡 Your AGI is well-aligned with the local average. Stable financial condition expected."
         else:
-            comment = "🟢 Your AGI is well above the local average. Strong financial resilience expected."
+            comment = "🟢 Your AGI is significantly above the local average. You are financially well-positioned."
 
         st.info(comment)
 
