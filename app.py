@@ -95,7 +95,7 @@ if st.button("Calculate Muse Score"):
 
         st.plotly_chart(fig, use_container_width=True)
 
-                # --- Customized Summary ---
+        # --- Customized Summary ---
         st.subheader("📋 Summary")
         st.markdown(f"""
         **ZIP Code:** {zip_code}  
