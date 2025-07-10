@@ -2,10 +2,13 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# Load Excel data
 @st.cache_data
 def load_data():
     df = pd.read_excel("zip_code_demographics3.xlsx", dtype={'zip': str}, engine='openpyxl')
+    numeric_cols = ['COLI', 'TRF', 'PCPI', 'PTR', 'TR', 'RSF', 'Savings']
+    for col in numeric_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df.dropna(subset=numeric_cols, inplace=True)  # remove rows with NaNs
     return df
 
 df = load_data()
@@ -32,7 +35,7 @@ if st.button("Calculate Muse Score"):
         SITF = normalize(df['TR']).loc[user_row.name]
         RSF = normalize(df['RSF']).loc[user_row.name]
         ISF = normalize(df['Savings']).loc[user_row.name]
-        DDF = 50  # Placeholder, replace with real data if available
+        DDF = 50  # Placeholder
 
         muse_score = (
             0.20 * CLF +
