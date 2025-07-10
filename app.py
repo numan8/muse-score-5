@@ -18,12 +18,11 @@ df = load_data()
 def normalize(series):
     return 100 * (series - series.min()) / (series.max() - series.min())
 
-# --- Additive AGI Adjustment Function ---
-def agi_additive_adjustment(user_agi, local_pcpi):
+# --- Normalize AGI based on ratio to local PCPI ---
+def normalize_agi_ratio(user_agi, local_pcpi):
     ratio = user_agi / local_pcpi
-    ratio = min(max(ratio, 0.5), 2.0)  # Clamp ratio between 0.5 and 2.0
-    adjustment = (ratio - 1) * 20  # -10 to +20
-    return adjustment
+    ratio = min(max(ratio, 0.5), 2.0)  # clamp between 0.5 and 2.0
+    return (ratio - 0.5) / 1.5 * 100   # normalized to 0–100
 
 # --- Streamlit UI ---
 st.title("📍 Muse Score Calculator")
@@ -35,7 +34,7 @@ if st.button("Calculate Muse Score"):
     if zip_code in df['zip'].values:
         user_row = df[df['zip'] == zip_code].iloc[0]
 
-        # Normalize Factors
+        # Normalize all factors
         CLF = normalize(df['COLI']).loc[user_row.name]
         TRF = normalize(df['TRF']).loc[user_row.name]
         TTIF = normalize(df['PCPI']).loc[user_row.name]
@@ -43,28 +42,26 @@ if st.button("Calculate Muse Score"):
         SITF = normalize(df['TR']).loc[user_row.name]
         RSF = normalize(df['RSF']).loc[user_row.name]
         ISF = normalize(df['Savings']).loc[user_row.name]
-        DDF = 50  # Placeholder
+        DDF = 50  # Placeholder if not available
+        AGI_norm = normalize_agi_ratio(agi, user_row['PCPI'])
 
-        # AGI Adjustment (additive effect)
-        agi_adj = agi_additive_adjustment(agi, user_row['PCPI'])
-
-        # Base Muse Score (0–100 scale)
-        base_score = (
+        # Muse Score formula with AGI as 20%
+        muse_score_raw = (
             0.20 * CLF +
             0.20 * TRF +
             0.15 * TTIF +
             0.15 * PTF +
-            0.15 * SITF +
-            0.05 * DDF +
+            0.10 * SITF +
+            0.10 * AGI_norm +
             0.05 * RSF +
             0.05 * ISF
         )
 
-        # Final Muse Score scaled to 300–850 with AGI adjustment
-        muse_score_scaled = 300 + ((base_score + agi_adj) * 550 / 100)
+        # Scale to 300–850
+        muse_score_scaled = 300 + (muse_score_raw * 550 / 100)
         muse_score_scaled = min(max(muse_score_scaled, 300), 850)
 
-        # Gauge Chart
+        # --- Gauge Chart ---
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=muse_score_scaled,
@@ -87,7 +84,7 @@ if st.button("Calculate Muse Score"):
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # Summary of Data
+        # --- Summary Info ---
         st.subheader(f"📋 Summary for ZIP: {zip_code} — {user_row.city}, {user_row.state_id}")
         st.markdown(f"""
         - **Your AGI:** ${agi:,.0f}
@@ -102,15 +99,16 @@ if st.button("Calculate Muse Score"):
         - **Population Density:** {user_row.density} people/km²
         """)
 
-        # Interpretation Message
-        if muse_score_scaled < 550:
-            comment = "🔴 Your AGI is well below local average. Significant financial stress expected in this area."
-        elif muse_score_scaled < 700:
-            comment = "🟠 Your AGI is below average. Financial risk exists. Boost income or reduce expenses."
-        elif muse_score_scaled < 800:
-            comment = "🟡 Your AGI aligns with local averages. You're in a good position. Stay financially disciplined."
+        # --- AGI vs PCPI Comment ---
+        agi_ratio = agi / user_row['PCPI']
+        if agi_ratio < 0.8:
+            comment = "🔴 Your AGI is significantly below the local average. You may experience financial stress in this area."
+        elif agi_ratio < 1.0:
+            comment = "🟠 Your AGI is slightly below the local average. Risk of financial constraints exists."
+        elif agi_ratio < 1.2:
+            comment = "🟡 Your AGI aligns closely with the local average. You're in a stable financial position."
         else:
-            comment = "🟢 Excellent! Your AGI is well above local norms. Strong financial resilience."
+            comment = "🟢 Your AGI is well above the local average. Strong financial resilience expected."
 
         st.info(comment)
 
