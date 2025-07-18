@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 # --- Load Data ---
 @st.cache_data
 def load_data():
-    df = pd.read_excel("zip_code_demographics4.xlsx", dtype={'zip': str}, engine='openpyxl')
+    df = pd.read_excel("zip_code_demographics3.xlsx", dtype={'zip': str}, engine='openpyxl')
     numeric_cols = ['COLI', 'TRF', 'PCPI', 'PTR', 'TR', 'RSF', 'Savings']
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors='coerce')
